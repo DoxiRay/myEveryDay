@@ -1,6 +1,9 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:intl/intl.dart';
+import '../services/todo_storage.dart';
+import '../services/quotes.dart';
 
 class AccueilPage extends StatefulWidget {
   const AccueilPage({super.key});
@@ -10,223 +13,280 @@ class AccueilPage extends StatefulWidget {
 }
 
 class _AccueilPageState extends State<AccueilPage> {
-  // ✅ Variables pour l'état des tâches
-  bool task1 = false;
-  bool task2 = true;
+  Map<String, List<Map<String, dynamic>>> tasksByDate = {};
+  String? dailyQuote;
 
-  // ⏱️ Variables Pomodoro
-  static const int workDuration = 25 * 60; // 25 minutes
-  int remainingSeconds = workDuration;
-  Timer? timer;
-  bool isRunning = false;
+  // Pomodoro timer variables
+  Timer? _pomodoroTimer;
+  int _remainingSeconds = 25 * 60; // 25 minutes
+  bool _isRunning = false;
 
-  /// Formater mm:ss
-  String get timeFormatted {
-    int minutes = remainingSeconds ~/ 60;
-    int seconds = remainingSeconds % 60;
+  @override
+  void initState() {
+    super.initState();
+    loadTasks();
+    dailyQuote = QuotesLibrary.getRandomQuote();
+  }
+
+  void loadTasks() async {
+    tasksByDate = await TodoStorage.loadTodos();
+    setState(() {});
+  }
+
+  List<Map<String, dynamic>> getTodayTasks() {
+    String today = DateTime.now().toIso8601String().substring(0, 10);
+    return tasksByDate[today] ?? [];
+  }
+
+  // Pomodoro functions
+  void _togglePomodoro() {
+    if (_isRunning) {
+      _pomodoroTimer?.cancel();
+      setState(() => _isRunning = false);
+    } else {
+      _pomodoroTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+        setState(() {
+          if (_remainingSeconds > 0) {
+            _remainingSeconds--;
+          } else {
+            _pomodoroTimer?.cancel();
+            _isRunning = false;
+          }
+        });
+      });
+      setState(() => _isRunning = true);
+    }
+  }
+
+  void _resetPomodoro() {
+    _pomodoroTimer?.cancel();
+    setState(() {
+      _remainingSeconds = 25 * 60;
+      _isRunning = false;
+    });
+  }
+
+  String get _formattedTime {
+    int minutes = _remainingSeconds ~/ 60;
+    int seconds = _remainingSeconds % 60;
     return "${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')}";
-  }
-
-  void startTimer() {
-    if (timer != null && timer!.isActive) return;
-
-    timer = Timer.periodic(const Duration(seconds: 1), (t) {
-      if (remainingSeconds > 0) {
-        setState(() {
-          remainingSeconds--;
-        });
-      } else {
-        t.cancel();
-        setState(() {
-          isRunning = false;
-        });
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("⏰ Temps écoulé ! Pause 🎉")),
-        );
-      }
-    });
-
-    setState(() {
-      isRunning = true;
-    });
-  }
-
-  void stopTimer() {
-    timer?.cancel();
-    setState(() {
-      isRunning = false;
-    });
-  }
-
-  void resetTimer() {
-    timer?.cancel();
-    setState(() {
-      remainingSeconds = workDuration;
-      isRunning = false;
-    });
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF8F6FB), // fond clair et doux
+      backgroundColor: const Color(0xFFF8F6FB),
       appBar: AppBar(
         title: Text(
           "Memoa",
-          style: GoogleFonts.poppins(fontWeight: FontWeight.bold, color: Colors.white),
+          style: GoogleFonts.poppins(
+            fontWeight: FontWeight.bold,
+            color: Colors.white,
+          ),
         ),
         centerTitle: true,
         backgroundColor: Colors.deepPurple,
-        elevation: 4,
-        shape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(bottom: Radius.circular(24)),
-        ),
       ),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.all(20.0),
+        padding: const EdgeInsets.all(20),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            // 🌤️ Météo
-            _buildCard(
-              title: "Météo",
-              icon: Icons.wb_sunny,
-              color: Colors.orange,
-              child: Text(
-                "Antananarivo - 26°C, Ensoleillé",
-                style: GoogleFonts.nunito(fontSize: 16),
+            // Pomodoro Timer
+            Card(
+              elevation: 6,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(20),
               ),
-            ),
-
-            const SizedBox(height: 20),
-
-            // 💡 Citation du jour
-            _buildCard(
-              title: "Citation du jour",
-              icon: Icons.format_quote,
-              color: Colors.blueAccent,
-              child: Text(
-                "\"Le succès est la somme de petits efforts répétés jour après jour.\"",
-                textAlign: TextAlign.center,
-                style: GoogleFonts.nunito(
-                  fontStyle: FontStyle.italic,
-                  fontSize: 16,
-                  color: Colors.black87,
+              child: Padding(
+                padding: const EdgeInsets.all(18),
+                child: Column(
+                  children: [
+                    Row(
+                      children: const [
+                        Icon(Icons.timer, color: Colors.redAccent),
+                        SizedBox(width: 8),
+                        Text(
+                          "Pomodoro Timer",
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 18,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    Text(
+                      _formattedTime,
+                      style: GoogleFonts.poppins(
+                        fontSize: 36,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.redAccent,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        ElevatedButton(
+                          onPressed: _togglePomodoro,
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.redAccent,
+                          ),
+                          child: Text(_isRunning ? "Pause" : "Start"),
+                        ),
+                        const SizedBox(width: 12),
+                        ElevatedButton(
+                          onPressed: _resetPomodoro,
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.grey,
+                          ),
+                          child: const Text("Reset"),
+                        ),
+                      ],
+                    ),
+                  ],
                 ),
               ),
             ),
-
             const SizedBox(height: 20),
 
-            // 📅 Événements Google Calendar
-            _buildCard(
-              title: "Événements à venir",
-              icon: Icons.event,
-              color: Colors.green,
-              child: Column(
-                children: const [
-                  ListTile(
-                    leading: Icon(Icons.work_outline, color: Colors.green),
-                    title: Text("Réunion projet Flutter"),
-                    subtitle: Text("Aujourd'hui, 14:00"),
-                  ),
-                  ListTile(
-                    leading: Icon(Icons.cake, color: Colors.pink),
-                    title: Text("Anniversaire Sarah 🎉"),
-                    subtitle: Text("Demain"),
-                  ),
-                ],
+            // Météo statique
+            Card(
+              elevation: 6,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(20),
               ),
-            ),
-
-            const SizedBox(height: 20),
-
-            // ✅ Tâches (CLICABLES)
-            _buildCard(
-              title: "Mes tâches",
-              icon: Icons.check_circle_outline,
-              color: Colors.deepPurple,
-              child: Column(
-                children: [
-                  CheckboxListTile(
-                    value: task1,
-                    onChanged: (val) {
-                      setState(() {
-                        task1 = val ?? false;
-                      });
-                    },
-                    title: const Text("Avancer sur le projet Memoa"),
-                  ),
-                  CheckboxListTile(
-                    value: task2,
-                    onChanged: (val) {
-                      setState(() {
-                        task2 = val ?? false;
-                      });
-                    },
-                    title: const Text("Réviser cours Flutter"),
-                  ),
-                ],
-              ),
-            ),
-
-            const SizedBox(height: 20),
-
-            // ⏱️ Pomodoro Timer
-            _buildCard(
-              title: "Pomodoro Timer",
-              icon: Icons.timer,
-              color: Colors.deepPurple,
-              child: Column(
-                children: [
-                  Text(
-                    timeFormatted,
-                    style: GoogleFonts.poppins(
-                      fontSize: 48,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.deepPurple,
+              child: Padding(
+                padding: const EdgeInsets.all(18),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: const [
+                        Text(
+                          "Antananarivo",
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 18,
+                          ),
+                        ),
+                        SizedBox(height: 8),
+                        Text("Soleil", style: TextStyle(fontSize: 16)),
+                        SizedBox(height: 4),
+                        Text(
+                          "28°C",
+                          style: TextStyle(
+                            fontSize: 24,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.orangeAccent,
+                          ),
+                        ),
+                      ],
                     ),
-                  ),
-                  const SizedBox(height: 16),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                    children: [
-                      ElevatedButton.icon(
-                        onPressed: isRunning ? null : startTimer,
-                        icon: const Icon(Icons.play_arrow),
-                        label: const Text("Démarrer"),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.green,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
+                    const Icon(
+                      Icons.wb_sunny,
+                      size: 50,
+                      color: Colors.orangeAccent,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 20),
+
+            // Citation du jour
+            Card(
+              elevation: 6,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Padding(
+                padding: const EdgeInsets.all(18),
+                child: Column(
+                  children: [
+                    Row(
+                      children: const [
+                        Icon(Icons.format_quote, color: Colors.blueAccent),
+                        SizedBox(width: 8),
+                        Text(
+                          "Citation du jour",
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 18,
                           ),
                         ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    Text(
+                      "\"$dailyQuote\"",
+                      textAlign: TextAlign.center,
+                      style: GoogleFonts.nunito(
+                        fontStyle: FontStyle.italic,
+                        fontSize: 16,
                       ),
-                      ElevatedButton.icon(
-                        onPressed: isRunning ? stopTimer : null,
-                        icon: const Icon(Icons.pause),
-                        label: const Text("Pause"),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.orange,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 20),
+
+            // Tâches du jour
+            Card(
+              elevation: 6,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Padding(
+                padding: const EdgeInsets.all(18),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: const [
+                        Icon(
+                          Icons.check_circle_outline,
+                          color: Colors.deepPurple,
+                        ),
+                        SizedBox(width: 8),
+                        Text(
+                          "Mes tâches du jour",
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 18,
                           ),
                         ),
-                      ),
-                      ElevatedButton.icon(
-                        onPressed: resetTimer,
-                        icon: const Icon(Icons.refresh),
-                        label: const Text("Reset"),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.red,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    Column(
+                      children:
+                          getTodayTasks().map((task) {
+                            return CheckboxListTile(
+                              value: task["done"],
+                              onChanged: (val) {
+                                setState(() {
+                                  task["done"] = val!;
+                                });
+                                TodoStorage.saveTodos(tasksByDate);
+                              },
+                              title: Text(
+                                task["title"],
+                                style: GoogleFonts.poppins(
+                                  decoration:
+                                      task["done"]
+                                          ? TextDecoration.lineThrough
+                                          : TextDecoration.none,
+                                ),
+                              ),
+                            );
+                          }).toList(),
+                    ),
+                  ],
+                ),
               ),
             ),
           ],
@@ -235,41 +295,9 @@ class _AccueilPageState extends State<AccueilPage> {
     );
   }
 
-  /// Petite fonction utilitaire pour éviter de répéter les Card
-  Widget _buildCard({
-    required String title,
-    required Widget child,
-    required IconData icon,
-    required Color color,
-  }) {
-    return Card(
-      elevation: 6,
-      shadowColor: Colors.black26,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-      child: Padding(
-        padding: const EdgeInsets.all(18),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Icon(icon, color: color),
-                const SizedBox(width: 8),
-                Text(
-                  title,
-                  style: GoogleFonts.poppins(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.black87,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            child,
-          ],
-        ),
-      ),
-    );
+  @override
+  void dispose() {
+    _pomodoroTimer?.cancel();
+    super.dispose();
   }
 }

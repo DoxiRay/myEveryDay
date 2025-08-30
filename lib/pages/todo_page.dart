@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:intl/intl.dart';
+import '../services/todo_storage.dart';
 
 class TodoPage extends StatefulWidget {
   const TodoPage({super.key});
@@ -13,157 +14,97 @@ class _TodoPageState extends State<TodoPage> {
   Map<String, List<Map<String, dynamic>>> tasksByDate = {};
   DateTime? _selectedDate;
 
-  void _createCard() async {
-    List<TextEditingController> taskControllers = [TextEditingController()];
-    _selectedDate = DateTime.now();
+  @override
+  void initState() {
+    super.initState();
+    loadSavedTodos();
+  }
+
+  void loadSavedTodos() async {
+    tasksByDate = await TodoStorage.loadTodos();
+    setState(() {});
+  }
+
+  void _saveTodos() {
+    TodoStorage.saveTodos(tasksByDate);
+  }
+
+  void _createOrEditTask({String? dateKey, int? taskIndex}) async {
+    TextEditingController controller = TextEditingController();
+    _selectedDate = dateKey != null ? DateTime.parse(dateKey) : DateTime.now();
+
+    if (dateKey != null && taskIndex != null) {
+      controller.text = tasksByDate[dateKey]![taskIndex]["title"];
+    }
 
     await showDialog(
       context: context,
       builder: (context) {
-        return StatefulBuilder(
-          builder: (context, setStateDialog) {
-            return AlertDialog(
-              backgroundColor: Colors.purple[50],
+        return AlertDialog(
+          backgroundColor: Colors.purple[50],
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
+          title: Text(
+            taskIndex != null ? "Modifier tâche" : "Nouvelle tâche",
+            style: GoogleFonts.poppins(
+              fontWeight: FontWeight.bold,
+              fontSize: 20,
+              color: Colors.deepPurple[700],
+            ),
+          ),
+          content: TextField(
+            controller: controller,
+            decoration: InputDecoration(
+              hintText: "Titre de la tâche",
+              filled: true,
+              fillColor: Colors.white,
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: BorderSide.none,
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text("Annuler"),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.deepPurple,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+              onPressed: () {
+                if (_selectedDate != null && controller.text.isNotEmpty) {
+                  String key = DateFormat('yyyy-MM-dd').format(_selectedDate!);
+                  if (!tasksByDate.containsKey(key)) tasksByDate[key] = [];
 
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(20),
-              ),
-              title: Text(
-                "Nouvelle tâche",
-                style: GoogleFonts.poppins(
-                  fontWeight: FontWeight.bold,
-                  fontSize: 20,
-                  color: Colors.deepPurple[700],
-                ),
-              ),
-              content: SingleChildScrollView(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    ...taskControllers.asMap().entries.map((entry) {
-                      int index = entry.key;
-                      return Padding(
-                        padding: const EdgeInsets.only(bottom: 12),
-                        child: TextField(
-                          controller: entry.value,
-                          decoration: InputDecoration(
-                            labelText: "Tâche ${index + 1}",
-                            filled: true,
-                            fillColor: Colors.white,
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(12),
-                              borderSide: BorderSide.none,
-                            ),
-                            suffixIcon:
-                                index > 0
-                                    ? IconButton(
-                                      icon: const Icon(
-                                        Icons.remove_circle,
-                                        color: Colors.red,
-                                      ),
-                                      onPressed: () {
-                                        setStateDialog(() {
-                                          taskControllers.removeAt(index);
-                                        });
-                                      },
-                                    )
-                                    : null,
-                          ),
-                        ),
-                      );
-                    }).toList(),
-                    Align(
-                      alignment: Alignment.centerLeft,
-                      child: TextButton.icon(
-                        onPressed: () {
-                          setStateDialog(() {
-                            taskControllers.add(TextEditingController());
-                          });
-                        },
-                        icon: const Icon(Icons.add, color: Colors.deepPurple),
-                        label: const Text(
-                          "Ajouter une tâche",
-                          style: TextStyle(color: Colors.deepPurple),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    Row(
-                      children: [
-                        Text(
-                          _selectedDate != null
-                              ? DateFormat('yyyy-MM-dd').format(_selectedDate!)
-                              : "Choisir une date",
-                          style: GoogleFonts.poppins(
-                            fontWeight: FontWeight.w600,
-                            color: Colors.deepPurple[700],
-                          ),
-                        ),
-                        IconButton(
-                          icon: const Icon(
-                            Icons.calendar_today,
-                            color: Colors.deepPurple,
-                          ),
-                          onPressed: () async {
-                            DateTime? picked = await showDatePicker(
-                              context: context,
-                              initialDate: _selectedDate ?? DateTime.now(),
-                              firstDate: DateTime(2000),
-                              lastDate: DateTime(2100),
-                            );
-                            if (picked != null) {
-                              setStateDialog(() {
-                                _selectedDate = picked;
-                              });
-                            }
-                          },
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.pop(context),
-                  child: const Text("Annuler"),
-                ),
-                ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.deepPurple,
-                    foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                  ),
-                  onPressed: () {
-                    if (_selectedDate != null) {
-                      String key = DateFormat(
-                        'yyyy-MM-dd',
-                      ).format(_selectedDate!);
-                      if (!tasksByDate.containsKey(key)) tasksByDate[key] = [];
-
-                      for (var controller in taskControllers) {
-                        if (controller.text.isNotEmpty) {
-                          tasksByDate[key]!.add({
-                            "title": controller.text,
-                            "done": false,
-                          });
-                        }
-                      }
-                      setState(() {});
-                      Navigator.pop(context);
-                    }
-                  },
-                  child: const Text("Créer"),
-                ),
-              ],
-            );
-          },
+                  if (taskIndex != null) {
+                    tasksByDate[key]![taskIndex]["title"] = controller.text;
+                  } else {
+                    tasksByDate[key]!.add({
+                      "title": controller.text,
+                      "done": false,
+                    });
+                  }
+                  setState(() {});
+                  _saveTodos();
+                  Navigator.pop(context);
+                }
+              },
+              child: Text(taskIndex != null ? "Modifier" : "Créer"),
+            ),
+          ],
         );
       },
     );
   }
+
+  void _createCard() => _createOrEditTask();
 
   @override
   Widget build(BuildContext context) {
@@ -171,8 +112,9 @@ class _TodoPageState extends State<TodoPage> {
       backgroundColor: Colors.purple[50],
       appBar: AppBar(
         title: Text(
-          "ToDo ",
-          style: GoogleFonts.poppins(fontWeight: FontWeight.bold,
+          "ToDo",
+          style: GoogleFonts.poppins(
+            fontWeight: FontWeight.bold,
             color: Colors.white,
           ),
         ),
@@ -225,65 +167,63 @@ class _TodoPageState extends State<TodoPage> {
                               color: Colors.deepPurple[700],
                             ),
                           ),
-                          children: [
-                            ...tasks.asMap().entries.map((taskEntry) {
-                              int index = taskEntry.key;
-                              Map<String, dynamic> task = taskEntry.value;
+                          children:
+                              tasks.asMap().entries.map((taskEntry) {
+                                int index = taskEntry.key;
+                                Map<String, dynamic> task = taskEntry.value;
 
-                              return ListTile(
-                                leading: Checkbox(
-                                  activeColor: Colors.deepPurple,
-                                  value: task["done"],
-                                  onChanged: (val) {
-                                    setState(() {
-                                      task["done"] = val!;
-                                    });
-                                  },
-                                ),
-                                title: Text(
-                                  task["title"],
-                                  style: GoogleFonts.poppins(
-                                    decoration:
-                                        task["done"]
-                                            ? TextDecoration.lineThrough
-                                            : TextDecoration.none,
+                                return ListTile(
+                                  leading: Checkbox(
+                                    activeColor: Colors.deepPurple,
+                                    value: task["done"],
+                                    onChanged: (val) {
+                                      setState(() {
+                                        task["done"] = val!;
+                                      });
+                                      _saveTodos();
+                                    },
                                   ),
-                                ),
-                                trailing: Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    IconButton(
-                                      icon: const Icon(
-                                        Icons.edit,
-                                        color: Colors.orange,
-                                      ),
-                                      onPressed: () {},
+                                  title: Text(
+                                    task["title"],
+                                    style: GoogleFonts.poppins(
+                                      decoration:
+                                          task["done"]
+                                              ? TextDecoration.lineThrough
+                                              : TextDecoration.none,
                                     ),
-                                    IconButton(
-                                      icon: const Icon(
-                                        Icons.delete,
-                                        color: Colors.red,
+                                  ),
+                                  trailing: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      IconButton(
+                                        icon: const Icon(
+                                          Icons.edit,
+                                          color: Colors.blueAccent,
+                                        ),
+                                        onPressed:
+                                            () => _createOrEditTask(
+                                              dateKey: date,
+                                              taskIndex: index,
+                                            ),
                                       ),
-                                      onPressed: () {},
-                                    ),
-                                  ],
-                                ),
-                              );
-                            }).toList(),
-                            Padding(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 16,
-                              ),
-                              child: TextButton.icon(
-                                style: TextButton.styleFrom(
-                                  foregroundColor: Colors.deepPurple,
-                                ),
-                                onPressed: () {},
-                                icon: const Icon(Icons.add),
-                                label: const Text("Ajouter une tâche"),
-                              ),
-                            ),
-                          ],
+                                      IconButton(
+                                        icon: const Icon(
+                                          Icons.delete,
+                                          color: Colors.red,
+                                        ),
+                                        onPressed: () {
+                                          setState(() {
+                                            tasks.removeAt(index);
+                                            if (tasks.isEmpty)
+                                              tasksByDate.remove(date);
+                                          });
+                                          _saveTodos();
+                                        },
+                                      ),
+                                    ],
+                                  ),
+                                );
+                              }).toList(),
                         ),
                       );
                     }).toList(),

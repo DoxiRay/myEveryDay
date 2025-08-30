@@ -1,6 +1,8 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
   runApp(const MyApp());
@@ -23,16 +25,48 @@ class MyApp extends StatelessWidget {
   }
 }
 
-// Modèle de note
+// 📌 Modèle de note
 class Note {
   String title;
   String content;
   DateTime createdAt;
 
   Note({required this.title, required this.content, required this.createdAt});
+
+  Map<String, dynamic> toJson() => {
+    "title": title,
+    "content": content,
+    "createdAt": createdAt.toIso8601String(),
+  };
+
+  factory Note.fromJson(Map<String, dynamic> json) => Note(
+    title: json["title"],
+    content: json["content"],
+    createdAt: DateTime.parse(json["createdAt"]),
+  );
 }
 
-// Page principale des notes
+// 📌 Classe de stockage
+class NoteStorage {
+  static const String _key = "notes";
+
+  static Future<void> saveNotes(List<Note> notes) async {
+    final prefs = await SharedPreferences.getInstance();
+    List<Map<String, dynamic>> jsonList =
+        notes.map((note) => note.toJson()).toList();
+    await prefs.setString(_key, jsonEncode(jsonList));
+  }
+
+  static Future<List<Note>> loadNotes() async {
+    final prefs = await SharedPreferences.getInstance();
+    String? data = prefs.getString(_key);
+    if (data == null) return [];
+    List decoded = jsonDecode(data);
+    return decoded.map((item) => Note.fromJson(item)).toList();
+  }
+}
+
+// 📌 Page principale des notes
 class NotesPage extends StatefulWidget {
   const NotesPage({super.key});
 
@@ -43,25 +77,51 @@ class NotesPage extends StatefulWidget {
 class _NotesPageState extends State<NotesPage> {
   List<Note> notes = [];
 
-  // Ouvrir la page d'édition/création de note
+  @override
+  void initState() {
+    super.initState();
+    _loadNotes();
+  }
+
+  Future<void> _loadNotes() async {
+    final loadedNotes = await NoteStorage.loadNotes();
+    setState(() {
+      notes = loadedNotes;
+    });
+  }
+
+  Future<void> _saveNotes() async {
+    await NoteStorage.saveNotes(notes);
+  }
+
   void _openNotePage({Note? note, int? index}) async {
     final Note? result = await Navigator.push(
       context,
       MaterialPageRoute(builder: (context) => NoteEditorPage(note: note)),
     );
 
-    setState(() {
-      if (result != null) {
+    if (result != null) {
+      setState(() {
         if (index != null) {
           notes[index] = result;
         } else {
           notes.add(result);
         }
-      } else if (note != null && index != null) {
-        // Si on enregistre une note vide, elle est supprimée
+      });
+      _saveNotes();
+    } else if (note != null && index != null) {
+      setState(() {
         notes.removeAt(index);
-      }
+      });
+      _saveNotes();
+    }
+  }
+
+  void _deleteNote(int index) {
+    setState(() {
+      notes.removeAt(index);
     });
+    _saveNotes();
   }
 
   @override
@@ -133,15 +193,11 @@ class _NotesPageState extends State<NotesPage> {
                           ),
                           trailing: IconButton(
                             icon: const Icon(Icons.delete, color: Colors.red),
-                            onPressed: () {
-                              setState(() {
-                                notes.removeAt(index);
-                              });
-                            },
+                            onPressed: () => _deleteNote(index),
                           ),
                         ),
                       ),
-                    )
+                    ),
                   );
                 },
               ),
@@ -149,7 +205,7 @@ class _NotesPageState extends State<NotesPage> {
   }
 }
 
-// Page d'édition/création d'une note
+// 📌 Page d'édition/création d'une note
 class NoteEditorPage extends StatefulWidget {
   final Note? note;
 
@@ -191,7 +247,7 @@ class _NoteEditorPageState extends State<NoteEditorPage> {
             onPressed: () {
               if (_titleController.text.isEmpty &&
                   _contentController.text.isEmpty) {
-                Navigator.pop(context, null); // supprime la note vide
+                Navigator.pop(context, null); // note vide → supprime
                 return;
               }
 
