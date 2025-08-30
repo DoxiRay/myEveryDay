@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:google_fonts/google_fonts.dart';
 
 class TodoPage extends StatefulWidget {
   const TodoPage({super.key});
@@ -10,210 +11,191 @@ class TodoPage extends StatefulWidget {
 
 class _TodoPageState extends State<TodoPage> {
   Map<String, List<Map<String, dynamic>>> tasksByDate = {};
-  final TextEditingController _taskController = TextEditingController();
   DateTime? _selectedDate;
 
   void _createCard() async {
-    _taskController.clear();
+    List<TextEditingController> taskControllers = [TextEditingController()];
     _selectedDate = DateTime.now();
 
     await showDialog(
       context: context,
       builder: (context) {
-        return AlertDialog(
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(20),
-          ),
-          title: const Text("Nouvelle Card"),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(
-                controller: _taskController,
-                decoration: InputDecoration(
-                  labelText: "Première tâche",
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
+        return StatefulBuilder(
+          builder: (context, setStateDialog) {
+            return AlertDialog(
+              backgroundColor: Colors.purple[50],
+
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(20),
+              ),
+              title: Text(
+                "Nouvelle tâche",
+                style: GoogleFonts.poppins(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 20,
+                  color: Colors.deepPurple[700],
                 ),
               ),
-              const SizedBox(height: 12),
-              Row(
-                children: [
-                  Text(
-                    _selectedDate != null
-                        ? DateFormat('yyyy-MM-dd').format(_selectedDate!)
-                        : "Choisir une date",
-                    style: const TextStyle(fontWeight: FontWeight.bold),
-                  ),
-                  IconButton(
-                    icon: const Icon(
-                      Icons.calendar_today,
-                      color: Colors.deepPurple,
-                    ),
-                    onPressed: () async {
-                      DateTime? picked = await showDatePicker(
-                        context: context,
-                        initialDate: _selectedDate ?? DateTime.now(),
-                        firstDate: DateTime(2000),
-                        lastDate: DateTime(2100),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    ...taskControllers.asMap().entries.map((entry) {
+                      int index = entry.key;
+                      return Padding(
+                        padding: const EdgeInsets.only(bottom: 12),
+                        child: TextField(
+                          controller: entry.value,
+                          decoration: InputDecoration(
+                            labelText: "Tâche ${index + 1}",
+                            filled: true,
+                            fillColor: Colors.white,
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: BorderSide.none,
+                            ),
+                            suffixIcon:
+                                index > 0
+                                    ? IconButton(
+                                      icon: const Icon(
+                                        Icons.remove_circle,
+                                        color: Colors.red,
+                                      ),
+                                      onPressed: () {
+                                        setStateDialog(() {
+                                          taskControllers.removeAt(index);
+                                        });
+                                      },
+                                    )
+                                    : null,
+                          ),
+                        ),
                       );
-                      if (picked != null) {
-                        setState(() {
-                          _selectedDate = picked;
-                        });
-                      }
-                    },
-                  ),
-                ],
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text("Annuler"),
-            ),
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.deepPurple,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
+                    }).toList(),
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: TextButton.icon(
+                        onPressed: () {
+                          setStateDialog(() {
+                            taskControllers.add(TextEditingController());
+                          });
+                        },
+                        icon: const Icon(Icons.add, color: Colors.deepPurple),
+                        label: const Text(
+                          "Ajouter une tâche",
+                          style: TextStyle(color: Colors.deepPurple),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Row(
+                      children: [
+                        Text(
+                          _selectedDate != null
+                              ? DateFormat('yyyy-MM-dd').format(_selectedDate!)
+                              : "Choisir une date",
+                          style: GoogleFonts.poppins(
+                            fontWeight: FontWeight.w600,
+                            color: Colors.deepPurple[700],
+                          ),
+                        ),
+                        IconButton(
+                          icon: const Icon(
+                            Icons.calendar_today,
+                            color: Colors.deepPurple,
+                          ),
+                          onPressed: () async {
+                            DateTime? picked = await showDatePicker(
+                              context: context,
+                              initialDate: _selectedDate ?? DateTime.now(),
+                              firstDate: DateTime(2000),
+                              lastDate: DateTime(2100),
+                            );
+                            if (picked != null) {
+                              setStateDialog(() {
+                                _selectedDate = picked;
+                              });
+                            }
+                          },
+                        ),
+                      ],
+                    ),
+                  ],
                 ),
               ),
-              onPressed: () {
-                if (_taskController.text.isNotEmpty && _selectedDate != null) {
-                  String key = DateFormat('yyyy-MM-dd').format(_selectedDate!);
-                  if (!tasksByDate.containsKey(key)) tasksByDate[key] = [];
-                  tasksByDate[key]!.add({
-                    "title": _taskController.text,
-                    "done": false,
-                  });
-                  setState(() {});
-                  Navigator.pop(context);
-                }
-              },
-              child: const Text("Créer"),
-            ),
-          ],
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text("Annuler"),
+                ),
+                ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.deepPurple,
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                  onPressed: () {
+                    if (_selectedDate != null) {
+                      String key = DateFormat(
+                        'yyyy-MM-dd',
+                      ).format(_selectedDate!);
+                      if (!tasksByDate.containsKey(key)) tasksByDate[key] = [];
+
+                      for (var controller in taskControllers) {
+                        if (controller.text.isNotEmpty) {
+                          tasksByDate[key]!.add({
+                            "title": controller.text,
+                            "done": false,
+                          });
+                        }
+                      }
+                      setState(() {});
+                      Navigator.pop(context);
+                    }
+                  },
+                  child: const Text("Créer"),
+                ),
+              ],
+            );
+          },
         );
       },
-    );
-  }
-
-  void _addTask(String dateKey) {
-    _taskController.clear();
-
-    showDialog(
-      context: context,
-      builder:
-          (context) => AlertDialog(
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(20),
-            ),
-            title: const Text("Nouvelle tâche"),
-            content: TextField(
-              controller: _taskController,
-              decoration: InputDecoration(
-                labelText: "Tâche",
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-              ),
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context),
-                child: const Text("Annuler"),
-              ),
-              ElevatedButton(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.deepPurple,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                ),
-                onPressed: () {
-                  if (_taskController.text.isNotEmpty) {
-                    setState(() {
-                      tasksByDate[dateKey]!.add({
-                        "title": _taskController.text,
-                        "done": false,
-                      });
-                    });
-                    Navigator.pop(context);
-                  }
-                },
-                child: const Text("Ajouter"),
-              ),
-            ],
-          ),
-    );
-  }
-
-  void _editTask(String dateKey, int index) {
-    _taskController.text = tasksByDate[dateKey]![index]["title"];
-
-    showDialog(
-      context: context,
-      builder:
-          (context) => AlertDialog(
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(20),
-            ),
-            title: const Text("Modifier tâche"),
-            content: TextField(
-              controller: _taskController,
-              decoration: InputDecoration(
-                labelText: "Tâche",
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-              ),
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context),
-                child: const Text("Annuler"),
-              ),
-              ElevatedButton(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.deepPurple,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                ),
-                onPressed: () {
-                  if (_taskController.text.isNotEmpty) {
-                    setState(() {
-                      tasksByDate[dateKey]![index]["title"] =
-                          _taskController.text;
-                    });
-                    Navigator.pop(context);
-                  }
-                },
-                child: const Text("Modifier"),
-              ),
-            ],
-          ),
     );
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: Colors.purple[50],
       appBar: AppBar(
-        title: const Text("ToDo par Date"),
+        title: Text(
+          "ToDo ",
+          style: GoogleFonts.poppins(fontWeight: FontWeight.bold,
+            color: Colors.white,
+          ),
+        ),
         backgroundColor: Colors.deepPurple,
+        elevation: 4,
       ),
       floatingActionButton: FloatingActionButton(
         onPressed: _createCard,
         child: const Icon(Icons.add),
         backgroundColor: Colors.deepPurple,
+        foregroundColor: Colors.white,
       ),
       body:
           tasksByDate.isEmpty
-              ? const Center(child: Text("Aucune Card pour l'instant"))
+              ? Center(
+                child: Text(
+                  "Aucune tâche pour l'instant",
+                  style: GoogleFonts.poppins(
+                    fontSize: 16,
+                    color: Colors.deepPurple[300],
+                  ),
+                ),
+              )
               : ListView(
                 padding: const EdgeInsets.all(12),
                 children:
@@ -222,6 +204,8 @@ class _TodoPageState extends State<TodoPage> {
                       List<Map<String, dynamic>> tasks = entry.value;
 
                       return Card(
+                        color: Colors.white,
+                        shadowColor: Colors.deepPurple[100],
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(20),
                         ),
@@ -235,10 +219,10 @@ class _TodoPageState extends State<TodoPage> {
                           expandedCrossAxisAlignment: CrossAxisAlignment.start,
                           title: Text(
                             date,
-                            style: const TextStyle(
+                            style: GoogleFonts.poppins(
                               fontSize: 18,
                               fontWeight: FontWeight.bold,
-                              color: Colors.deepPurple,
+                              color: Colors.deepPurple[700],
                             ),
                           ),
                           children: [
@@ -258,7 +242,7 @@ class _TodoPageState extends State<TodoPage> {
                                 ),
                                 title: Text(
                                   task["title"],
-                                  style: TextStyle(
+                                  style: GoogleFonts.poppins(
                                     decoration:
                                         task["done"]
                                             ? TextDecoration.lineThrough
@@ -273,20 +257,14 @@ class _TodoPageState extends State<TodoPage> {
                                         Icons.edit,
                                         color: Colors.orange,
                                       ),
-                                      onPressed: () => _editTask(date, index),
+                                      onPressed: () {},
                                     ),
                                     IconButton(
                                       icon: const Icon(
                                         Icons.delete,
                                         color: Colors.red,
                                       ),
-                                      onPressed: () {
-                                        setState(() {
-                                          tasks.removeAt(index);
-                                          if (tasks.isEmpty)
-                                            tasksByDate.remove(date);
-                                        });
-                                      },
+                                      onPressed: () {},
                                     ),
                                   ],
                                 ),
@@ -300,7 +278,7 @@ class _TodoPageState extends State<TodoPage> {
                                 style: TextButton.styleFrom(
                                   foregroundColor: Colors.deepPurple,
                                 ),
-                                onPressed: () => _addTask(date),
+                                onPressed: () {},
                                 icon: const Icon(Icons.add),
                                 label: const Text("Ajouter une tâche"),
                               ),
